@@ -23,7 +23,7 @@ class JosaCorrector:
             '없는', '있는', '없고', '있고', '없이', '있어', '없어',
             # 지시어 보호 패턴
             '이 점', '이 선', '이 값', '이 식', '이 경우', '이 때', '이 확률', '이 시행', '이 도형', '이 문제',
-            '이 등식', '이 방정식', '이 부등식', '이 함수', '이 그래프', '이 조건', '이 직선', '이 곡선', '이 영역',
+            '이 등식', '이 방정식', '이 부등식', '이 함수', '이 그래프', '이 조건','이 직선', '이 곡선', '이 영역',
             '이 삼각형', '이 타원', '이 원', '이 사각형', '이 다각형', '이 구', '이 원뿔', '이 원기둥', '이 수열',
             '그 점', '그 선', '그 값', '그 식', '그 경우', '그 때',
             '저 점'
@@ -34,7 +34,8 @@ class JosaCorrector:
             '0': True, '1': True, '3': True, '6': True, '7': True, '8': True, '10': True,
             'l': True, 'm': True, 'n': True, 'r': True, 
             'L': True, 'M': True, 'N': True, 'R': True, 
-            '제곱': True, '여집합': True, '바': False
+            '제곱': True, '여집합': True, '바': False,
+            '프라임': True  # 프라임(임) -> 받침 있음
         }
         for c in "ㄱㄴㄷㄹㅁㅂㅅㅇㅈㅊㅋㅌㅍㅎ": d[c] = True
         for ch in '2459AaBbCcDdEeFfGgHhIiJjKkOoPpQqSsTtUuVvWwXxeYyZz':
@@ -133,6 +134,11 @@ class JosaCorrector:
 
         final_term = final_term.rstrip('\\').strip()
 
+        # ★ 수정: 프라임(') 처리 로직 추가
+        # A', A'', A^{\prime} 등
+        if final_term.endswith("'") or r'\prime' in final_term:
+            return "프라임"
+
         if r'\degree' in final_term or r'^\circ' in final_term: return "도"
         
         if "^" in final_term:
@@ -144,25 +150,35 @@ class JosaCorrector:
                 if unit_content in ['m', 'cm', 'mm', 'km']: return "미터"
             return "제곱"
 
-        # ★ 수정: 단위(UNIT) 체크를 먼저 수행
+        if "_" in final_term:
+            sub_match = re.search(r'_\{([^}]+)\}\s*$', final_term)
+            if sub_match:
+                content = sub_match.group(1)
+                content = re.sub(r'\\[,;:! ]|\\quad|\\qquad', '', content)
+                content = content.strip()
+                if content:
+                    m = re.search(r'([가-힣a-zA-Z0-9])\s*$', content)
+                    if m: return m.group(1)
+            
+            sub_match_simple = re.search(r'_((?:\\[a-zA-Z]+|.)*?)([a-zA-Z0-9])\s*$', final_term)
+            if sub_match_simple:
+                return sub_match_simple.group(2)
+
+        if final_term.endswith(')'):
+             m = re.search(r'([가-힣a-zA-Z0-9])\)+$', final_term)
+             if m: return m.group(1)
+
         mathrm_match = re.search(r'\\mathrm\{([a-zA-Z]+)\}', final_term)
         if mathrm_match:
-            # 단위인지 확인 (m, cm, kg 등)
             unit_candidate = mathrm_match.group(1)
             if unit_candidate in self.unit_batchim_dict:
                 return f"UNIT:{unit_candidate}"
-            # 단위가 아니라면(예: 점 O, 점 A 등), 일반 텍스트로 취급하여 아래 로직으로 넘어감
 
-        # ★ 최후의 수단: 모든 LaTeX 명령어를 제거하고 순수 텍스트만 남김
-        # 1. \mathrm, \text 등 명령어 제거
         text_only = re.sub(r'\\[a-zA-Z]+', '', final_term)
-        # 2. 중괄호, 괄호, 밑첨자(_), 위첨자(^) 등 특수문자 제거 (단, 숫자와 알파벳은 남김)
-        # 밑첨자(_) 뒤의 숫자는 남겨야 하므로 _는 공백으로 치환하거나 제거
         text_only = text_only.replace('_', '').replace('^', '')
         text_only = re.sub(r'[{}[\](),;:!]', '', text_only)
         text_only = text_only.strip()
 
-        # 3. 남은 텍스트의 마지막 글자 반환
         if text_only:
             return text_only[-1]
         
@@ -189,7 +205,10 @@ class JosaCorrector:
             else:
                 last_char = real_unit[-1]
                 has_batchim = self.batchim_dict.get(last_char, False)
-                
+        
+        elif target == "프라임": # 프라임 -> 받침 있음
+            has_batchim = True
+            
         elif target == "미터": has_batchim = False
         else:
             if target in self.batchim_dict: has_batchim = self.batchim_dict[target]
