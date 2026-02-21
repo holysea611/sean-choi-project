@@ -103,9 +103,9 @@ class JosaCorrector:
     def find_target(self, formula_str):
         simplified = self.simplify_formula(formula_str)
         
-        # 공백 관련 LaTeX 명령어 제거
-        simplified = re.sub(r'\\[,;! ]|\\quad|\\qquad', '', simplified)
-        
+        # 1. 공백 관련 LaTeX 명령어 제거 (강력하게)
+        # \, \; \: \! \quad \qquad 및 일반 공백 제거
+        simplified = re.sub(r'\\[,;:! ]|\\quad|\\qquad', '', simplified)
         clean = re.sub(r'\s+', '', simplified)
         
         masked_text = clean
@@ -125,13 +125,15 @@ class JosaCorrector:
         parts = re.split(split_pattern, masked_text)
         final_term = parts[-1] if parts else masked_text
 
-        # ★ 중요: 모든 보호된 중괄호 내용을 먼저 복원
+        # 2. 모든 보호된 중괄호 내용을 먼저 복원
         while "@BRACE" in final_term:
             for i, content in enumerate(braces_content):
                 placeholder = f"@BRACE{i}@"
                 if placeholder in final_term:
                     final_term = final_term.replace(placeholder, "{" + content + "}")
 
+        # 3. 복원 후 다시 한 번 끝부분의 공백 명령어 제거 (안전장치)
+        final_term = re.sub(r'\\[,;:! ]+$', '', final_term)
         final_term = final_term.rstrip('\\').strip()
 
         if r'\degree' in final_term or r'^\circ' in final_term: return "도"
@@ -145,24 +147,27 @@ class JosaCorrector:
                 if unit_content in ['m', 'cm', 'mm', 'km']: return "미터"
             return "제곱"
 
-        # ★ 수정: 밑첨자(_) 처리 로직 강화 (복원된 final_term 기준)
+        # ★ 수정: 밑첨자(_) 처리 로직 강화
         if "_" in final_term:
             # 1. 중괄호로 감싸진 밑첨자: _{...}
-            # 탐욕적이지 않게 마지막 _{...}를 찾음
+            # 예: O_{1}, O_{\,1} 등 공백 명령어가 섞여 있을 수 있음
             sub_match = re.search(r'_\{([^}]+)\}\s*$', final_term)
             if sub_match:
                 content = sub_match.group(1)
-                # 내용의 마지막 글자 (공백 제거 후)
+                # 내용 내부의 공백 명령어 제거
+                content = re.sub(r'\\[,;:! ]|\\quad|\\qquad', '', content)
                 content = content.strip()
                 if content:
-                    # 마지막 글자가 한글/영문/숫자이면 반환
                     m = re.search(r'([가-힣a-zA-Z0-9])\s*$', content)
                     if m: return m.group(1)
             
             # 2. 중괄호 없는 밑첨자: _1, _a
-            sub_match_simple = re.search(r'_([a-zA-Z0-9])\s*$', final_term)
+            # 예: O_1, O_\,1 (공백 명령어가 _ 뒤에 붙을 수도 있음)
+            # _ 뒤에 공백 명령어가 오고 그 뒤에 숫자가 오는 경우 처리
+            # 예: _\,1 -> 1
+            sub_match_simple = re.search(r'_((?:\\[a-zA-Z]+|.)*?)([a-zA-Z0-9])\s*$', final_term)
             if sub_match_simple:
-                return sub_match_simple.group(1)
+                return sub_match_simple.group(2)
 
         if final_term.endswith(')'):
              m = re.search(r'([가-힣a-zA-Z0-9])\)+$', final_term)
