@@ -24,7 +24,7 @@ class JosaCorrector:
             # 지시어 보호 패턴
             '이 점', '이 선', '이 값', '이 식', '이 경우', '이 때', '이 확률', '이 시행', '이 도형', '이 문제',
             '이 등식', '이 방정식', '이 부등식', '이 함수', '이 그래프', '이 조건',  '이 직선', '이 곡선', '이 영역',
-            '이 삼각형', '이 타원', '이 원', '이 사각형', '이 다각형', '이 구', '이 원뿔', '이 원기둥', '이 수열', '이 접선',
+            '이 삼각형', '이 타원', '이 원', '이 사각형', '이 다각형', '이 구', '이 원뿔', '이 원기둥', '이 수열', '이 접선', 
             '그 점', '그 선', '그 값', '그 식', '그 경우', '그 때',
             '저 점', '이 배터리', '그 배터리', '저 배터리'
         ]
@@ -206,7 +206,9 @@ class JosaCorrector:
         if m:
             unit_candidate = m.group(1)
             if unit_candidate in self.unit_batchim_dict:
-                return f"UNIT:{unit_candidate}"
+                # ★ 추가 수정: 단일 문자(m, l, g 등)는 단위가 아닌 변수일 확률이 높으므로 일반 문자로 취급
+                if len(unit_candidate) > 1:
+                    return f"UNIT:{unit_candidate}"
 
         text_only = re.sub(r'\\[a-zA-Z]+', '', final_term)
         text_only = text_only.replace('_', '').replace('^', '')
