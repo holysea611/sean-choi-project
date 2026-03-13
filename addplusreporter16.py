@@ -36,7 +36,14 @@ class JosaCorrector:
             'l': True, 'm': True, 'n': True, 'r': True, 
             'L': True, 'M': True, 'N': True, 'R': True, 
             '제곱': True, '여집합': True, '바': False,
-            '프라임': True
+            '프라임': True,
+            # ★ 추가: 그리스 문자 발음에 따른 받침 유무 사전
+            'alpha': False, 'beta': False, 'gamma': False, 'delta': False, 'epsilon': True, 'varepsilon': True,
+            'zeta': False, 'eta': False, 'theta': False, 'iota': False, 'kappa': False, 'lambda': False,
+            'mu': False, 'nu': False, 'xi': False, 'pi': False, 'rho': False, 'sigma': False, 'tau': False,
+            'upsilon': True, 'phi': False, 'varphi': False, 'chi': False, 'psi': False, 'omega': False,
+            'Gamma': False, 'Delta': False, 'Theta': False, 'Lambda': False, 'Xi': False, 'Pi': False,
+            'Sigma': False, 'Upsilon': True, 'Phi': False, 'Psi': False, 'Omega': False
         }
         for c in "ㄱㄴㄷㄹㅁㅂㅅㅇㅈㅊㅋㅌㅍㅎ": d[c] = True
         for ch in '2459AaBbCcDdEeFfGgHhIiJjKkOoPpQqSsTtUuVvWwXxeYyZz':
@@ -155,6 +162,15 @@ class JosaCorrector:
         if '/' in final_term:
             final_term = final_term.split('/')[-1]
 
+        # ★ 핵심 수정: 수식 끝에 \pi, \alpha 등 그리스 문자가 올 경우 이를 타겟으로 인식
+        clean_final = re.sub(r'(?:\\[\}])+$', '', final_term)
+        clean_final = re.sub(r'[\}\)\]]+$', '', clean_final)
+        greek_match = re.search(r'\\([a-zA-Z]+)$', clean_final)
+        if greek_match:
+            greek_letter = greek_match.group(1)
+            if greek_letter in self.batchim_dict:
+                return greek_letter
+
         last_caret = final_term.rfind('^')
         if last_caret != -1:
             after_caret = final_term[last_caret+1:].strip()
@@ -217,7 +233,7 @@ class JosaCorrector:
 
         text_only = re.sub(r'\\[a-zA-Z]+', '', final_term)
         text_only = text_only.replace('_', '').replace('^', '')
-        # ★ 핵심 수정: 백슬래시(\)도 제거하여 \{3\} 같은 경우 3이 올바르게 남도록 함
+        # 백슬래시(\)도 제거하여 \{3\} 같은 경우 3이 올바르게 남도록 함
         text_only = re.sub(r'[{}[\](),;:!\\]', '', text_only)
         text_only = text_only.strip()
 
@@ -448,7 +464,7 @@ class SpellingCorrector:
 
                 correct_josa = josa
                 for bat_o, bat_x in self.korean_particle_pairs:
-                    if josa == bat_o or josa == bat_x:
+                    if josa == bat_o or bat_x == josa:
                         if bat_o == '으로':
                             if not has_bat or is_rieul: correct_josa = '로'
                             else: correct_josa = '으로'
